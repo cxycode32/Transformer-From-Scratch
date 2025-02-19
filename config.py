@@ -1,0 +1,25 @@
+import torch
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+SAVE_MODEL = True
+LOAD_MODEL = True
+
+BATCH_SIZE = 16
+EPOCHS_NUM = 2
+LEARNING_RATE = 3e-4
+
+MAX_VOCAB_SIZE = 10000
+MIN_FREQ = 2
+
+EMBEDDING_SIZE = 512
+NUM_LAYERS = 6
+NUM_HEADS = 8
+FORWARD_EXPANSION = 4
+DROPOUT = 0
+MAX_LENGTH = 10000
+
+DATASET_DIR = "IWSLT2016"
+MODELS_DIR = "models"
+LOG_DIR = "logs"
+DIRECTORIES=[LOG_DIR]
