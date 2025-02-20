@@ -179,18 +179,20 @@ def test_model(model, test_loader, src_vocab, trg_vocab, device):
 
             batch_size = src.shape[0]
 
-            for idx in range(batch_size):
-                src_sentence = tensor_to_sentence(src[idx], src_vocab)
-                trg_sentence = tensor_to_sentence(trg[idx], trg_vocab)
-                
-                prediction = translate_sentence(model, src[idx], trg_vocab, device)
-                print(f"[TESTING] prediction: {prediction}")
+            for i in range(batch_size):
+                src_sentence = tensor_to_sentence(src[i], src_vocab)
+                trg_sentence = tensor_to_sentence(trg[i], trg_vocab)
+
+                prediction = translate_sentence(model, src[i], trg_vocab, device)
+
+                print(f"-----[{idx+1}/{len(test_loader)}] ({i+1}/{batch_size})----------")
+                print(f"SRC: {src_sentence}")
+                print(f"TRG: {trg_sentence}")
+                print(f"PRED: {prediction}")
 
                 targets.append([trg_sentence])
                 outputs.append(prediction)
-
-                print(f"[{idx+1}/{len(test_loader)}] {src_sentence}\nOutput: {outputs}")
-
+                
         bleu_score = calculate_bleu(outputs, targets) * 100
         print(f"BLEU Score: {bleu_score:.4f}")
         

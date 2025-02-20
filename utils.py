@@ -138,18 +138,51 @@ def load_checkpoint(model, optimizer, dir=config.MODELS_DIR):
 
 
 def tensor_to_tokens(tensor, vocab):
+    """
+    Converts a tensor of token indices into a list of corresponding tokens using the vocabulary.
+
+    Args:
+        tensor (torch.Tensor or list): A tensor or list containing token indices.
+        vocab (torchtext.vocab.Vocab): The vocabulary object that maps indices to tokens.
+
+    Returns:
+        list: A list of token strings corresponding to the given tensor indices.
+    """
     if isinstance(tensor, list):
         return [vocab.lookup_token(idx) for idx in tensor]
     return [vocab.lookup_token(idx) for idx in tensor.tolist()]
 
 
 def tensor_to_sentence(tensor, vocab):
+    """
+    Converts a tensor of token indices into a human-readable sentence.
+
+    Args:
+        tensor (torch.Tensor or list): A tensor or list containing token indices.
+        vocab (torchtext.vocab.Vocab): The vocabulary object that maps indices to tokens.
+
+    Returns:
+        str: A sentence string with special tokens ("<sos>", "<eos>", "<pad>", "<unk>") removed.
+    """
     tokens = tensor_to_tokens(tensor, vocab)
-    tokens = [tok for tok in tokens if tok not in ["<sos>", "<eos>", "<pad>"]]
+    tokens = [tok for tok in tokens if tok not in ["<sos>", "<eos>", "<pad>", "<unk>"]]
     return " ".join(tokens)
     
 
-def translate_sentence(model, src, trg_vocab, device, max_length=100):
+def translate_sentence(model, src, trg_vocab, device, max_length=10):
+    """
+    Translates a source sentence using a trained model.
+
+    Args:
+        model (torch.nn.Module): The trained Transformer model.
+        src (torch.Tensor): The source sentence as a tensor of token indices.
+        trg_vocab (torchtext.vocab.Vocab): The target vocabulary for mapping indices to words.
+        device (torch.device): The device (CPU or GPU) to run inference on.
+        max_length (int, optional): The maximum length of the generated translation. Defaults to 10.
+
+    Returns:
+        str: The translated sentence as a string.
+    """
     src = src.unsqueeze(0).to(device)
     outputs = [trg_vocab["<sos>"]]
 
@@ -168,4 +201,14 @@ def translate_sentence(model, src, trg_vocab, device, max_length=100):
 
 
 def calculate_bleu(outputs, targets):
+    """
+    Computes the BLEU (Bilingual Evaluation Understudy) score to measure translation quality.
+
+    Args:
+        outputs (list of list of str): A list of generated translations (tokenized).
+        targets (list of list of list of str): A list of reference translations (each reference is a tokenized list).
+
+    Returns:
+        float: The BLEU score (0 to 1), where 1 represents perfect translation accuracy.
+    """
     return bleu_score(outputs, targets)
