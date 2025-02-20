@@ -38,53 +38,34 @@ class SelfAttention(nn.Module):
         Returns:
             Tensor: The output after applying self-attention, with shape (batch_size, query_len, embed_size).
         """
-        # print(f"--------------------SELF ATTENTION START--------------------")
         N = query.shape[0]
-        # print(f"N: {N}")
 
         value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
-        # print(f"value_len: {value_len}")
-        # print(f"key_len: {key_len}")
-        # print(f"query_len: {query_len}")
 
         # Split the embedding into self.num_heads different pieces for multi-head attention
         queries = self.queries(query)  # (N, query_len, embed_size)
         keys = self.keys(keys)  # (N, key_len, embed_size)
         values = self.values(values)  # (N, value_len, embed_size)
 
-        # print(f"queries 1: {queries.shape}")
-        # print(f"keys 1: {keys.shape}")
-        # print(f"values 1: {values.shape}")
-
         # Split the embedding into self.heads different pieces
         queries = queries.reshape(N, query_len, self.num_heads, self.head_dim)
         keys = keys.reshape(N, key_len, self.num_heads, self.head_dim)
         values = values.reshape(N, value_len, self.num_heads, self.head_dim)
 
-        # print(f"queries 2: {queries.shape}")
-        # print(f"keys 2: {keys.shape}")
-        # print(f"values 2: {values.shape}")
-        
         # Compute scaled dot-product attention scores (query * keys)
         energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
-        # print(f"energy: {energy.shape}")
 
         # Apply softmax normalization
         # attention: (N, num_heads, query_len, key_len)
         attention = torch.softmax(energy / (self.embedding_size ** (1 / 2)), dim=3)
-        # print(f"attention: {attention.shape}")
 
         # Weighted sum of values based on attention scores
         output = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(
             N, query_len, self.num_heads * self.head_dim
         )
-        # print(f"output 1: {output.shape}")
 
         # Final linear transformation
         output = self.fc_out(output)
-
-        # print(f"output 2: {output.shape}")
-        # print(f"--------------------SELF ATTENTION END--------------------")
 
         return output
 
@@ -124,20 +105,10 @@ class TransformerBlock(nn.Module):
         Returns:
             Tensor: Output tensor of the Transformer block.
         """
-        # print(f"--------------------TRANSFORMER BLOCK START--------------------")
         attention = self.attention(value, key, query, mask)
-        # print(f"attention: {attention.shape}")
-
         x = self.dropout(self.norm1(attention + query))
-        # print(f"x: {x.shape}")
-
         forward = self.feed_forward(x)
-        # print(f"forward: {forward.shape}")
-
         output = self.dropout(self.norm2(forward + x))
-        # print(f"output: {output.shape}")
-        # print(f"--------------------TRANSFORMER BLOCK END--------------------")
-
         return output
 
 
@@ -200,25 +171,15 @@ class Encoder(nn.Module):
             Tensor: Encoder output of shape (batch_size, seq_len, embedding_size) 
                     after being processed by multiple Transformer layers.
         """
-        # print(f"--------------------ENCODER START--------------------")
         N, seq_length = x.shape
-        # print(f"N: {N} | seq_length: {seq_length}")  # N: 16 | seq_length: 101
-
         positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
-        # print(f"positions: {positions.shape}")  # positions: torch.Size([16, 101])
-
         output = self.dropout((self.word_embedding(x) + self.position_embedding(positions)))
-        # the line above caused the error: IndexError: index out of range in self
-        # print(f"output: {output.shape}")
 
-        # In the Encoder the query, key, value are all the same, it's in the
-        # decoder this will change. This might look a bit odd in this case.
+        # The query, key, and value are the same for Encoder because
+        # they come from the same input (enc_src).
         for layer in self.layers:
             output = layer(output, output, output, mask)
             
-        # print(f"final output: {output.shape}")
-        # print(f"--------------------ENCODER END--------------------")
-
         return output
 
 
@@ -256,18 +217,9 @@ class DecoderBlock(nn.Module):
         Returns:
             Tensor: Processed output of the decoder block.
         """
-        # print(f"--------------------DECODER BLOCK START--------------------")
-
         attention = self.attention(x, x, x, trg_mask)
-        # print(f"attention: {attention.shape}")
-
         query = self.dropout(self.norm(attention + x))
-        # print(f"query: {query.shape}")
-
         output = self.transformer_block(value, key, query, src_mask)
-        # print(f"output: {output.shape}")
-
-        # print(f"--------------------DECODER BLOCK END--------------------")
         return output
 
 
@@ -325,24 +277,16 @@ class Decoder(nn.Module):
         Returns:
             Tensor: Decoder output after processing through decoder layers and final output layer.
         """
-        # print(f"--------------------DECODER START--------------------")
-
         N, seq_length = x.shape
-        # print(f"N: {N} | seq_length: {seq_length}")
-
         positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
-        # print(f"positions: {positions.shape}")
-
         x = self.dropout((self.word_embedding(x) + self.position_embedding(positions)))
-        # print(f"x: {x.shape}")
 
+        # For Decoder, the query comes from the trg_seq
+        # The key and value come from the src_seq
         for layer in self.layers:
             x = layer(x, enc_out, enc_out, src_mask, trg_mask)
 
-        # print(f"x for output: {x.shape}")
         output = self.fc_out(x)
-        # print(f"output: {output.shape}")
-        # print(f"--------------------DECODER END--------------------")
 
         return output
 
@@ -439,18 +383,9 @@ class Transformer(nn.Module):
             Tensor: Mask of shape (batch_size, 1, 1, seq_length), where 
                     1 indicates valid tokens and 0 indicates padding.
         """
-        # print(f"--------------------MAKE SRC MASK START--------------------")
-        src_mask = (src != self.src_pad_idx)
-        # print(f"src_mask before unsqueeze: {src_mask.shape}")
-        
-        src_mask = src_mask.unsqueeze(1)
-        # print(f"src_mask after unsqueeze(1): {src_mask.shape}")
-        
-        src_mask = src_mask.unsqueeze(2)
-        # print(f"src_mask after unsqueeze(2): {src_mask.shape}")
-
-        # print(f"--------------------MAKE SRC MASK END--------------------")
-
+        src_mask = (src != self.src_pad_idx)  # (batch_size, seq_length)
+        src_mask = src_mask.unsqueeze(1)  # (batch_size, 1, seq_length)
+        src_mask = src_mask.unsqueeze(2)  # (batch_size, 1, 1, seq_length)
         return src_mask.to(self.device)
 
     def make_trg_mask(self, trg):
@@ -465,18 +400,9 @@ class Transformer(nn.Module):
             Tensor: Lower triangular mask of shape (batch_size, 1, trg_length, trg_length),
                     where future tokens are masked.
         """
-        # print(f"--------------------MAKE TRG MASK START--------------------")
-        N, trg_len = trg.shape
-        # print(f"N: {N} | trg_len: {trg_len}")
-        
-        trg_mask = torch.tril(torch.ones((trg_len, trg_len)))
-        # print(f"trg_mask before expand: {trg_mask.shape}")
-
-        trg_mask = trg_mask.expand(N, 1, trg_len, trg_len)
-        # print(f"trg_mask after expand: {trg_mask.shape}")
-        
-        # print(f"--------------------MAKE TRG MASK END--------------------")
-
+        N, trg_len = trg.shape  # N: batch_size, trg_len: seq_length
+        trg_mask = torch.tril(torch.ones((trg_len, trg_len)))  # (trg_length, trg_length)
+        trg_mask = trg_mask.expand(N, 1, trg_len, trg_len)  # (batch_size, 1, trg_length, trg_length)
         return trg_mask.to(self.device)
 
     def forward(self, src, trg):
@@ -496,20 +422,8 @@ class Transformer(nn.Module):
         Returns:
             Tensor: Predicted token logits of shape (batch_size, seq_length, trg_vocab_size).
         """
-        # print(f"--------------------TRANSFORMER START--------------------")
-
-        src_mask = self.make_src_mask(src)
-        # print(f"[TRANSFORMER] src_mask: {src_mask.shape}")
-
-        trg_mask = self.make_trg_mask(trg)
-        # print(f"[TRANSFORMER] trg_mask: {trg_mask.shape}")
-        
-        enc_src = self.encoder(src, src_mask)
-        # print(f"[TRANSFORMER] enc_src: {enc_src.shape}")
-
-        output = self.decoder(trg, enc_src, src_mask, trg_mask)
-        # print(f"[TRANSFORMER] output: {output.shape}")
-
-        # print(f"--------------------TRANSFORMER END--------------------")
-
+        src_mask = self.make_src_mask(src)  # (batch_size, 1, 1, seq_length)
+        trg_mask = self.make_trg_mask(trg)  # (batch_size, 1, trg_length, trg_length)
+        enc_src = self.encoder(src, src_mask)  # (batch_size, seq_length, embedding_size)
+        output = self.decoder(trg, enc_src, src_mask, trg_mask)  # (batch_size, seq_length, trg_vocab_size)
         return output
