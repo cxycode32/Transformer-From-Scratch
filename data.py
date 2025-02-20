@@ -1,6 +1,6 @@
 import torch
-from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
 import torchtext
 torchtext.disable_torchtext_deprecation_warning()
 from torchtext.datasets import IWSLT2016
@@ -16,10 +16,16 @@ import config
 
 def install_spacy_model(model_name):
     """
-    Installs a missing spaCy model automatically if it's not installed.
+    Installs a missing spaCy model if it's not already installed.
+
+    This function attempts to install a specified spaCy model using subprocess. 
+    If the installation fails, it raises a RuntimeError.
 
     Args:
-        model_name (str): The name of the spaCy model to install.
+        model_name (str): The name of the spaCy model to install (e.g., "en_core_web_sm").
+
+    Raises:
+        RuntimeError: If the model installation fails.
     """
     print(f"Installing missing Spacy model: {model_name}...")
     try:
@@ -31,14 +37,22 @@ def install_spacy_model(model_name):
     
 def load_tokenizers(src_lang, trg_lang):
     """
-    Loads tokenizers for the specified source and target languages.
+    Loads tokenizers for the specified source and target languages using spaCy.
+
+    This function initializes tokenizers for two given languages, ensuring the required spaCy models 
+    are available. If a model is missing, it attempts to install it before loading.
 
     Args:
-        src_lang (str): Source language code.
-        trg_lang (str): Target language code.
+        src_lang (str): Source language code (e.g., "en", "fr", "de", "cs", "ar").
+        trg_lang (str): Target language code (e.g., "en", "fr", "de", "cs", "ar").
 
     Returns:
-        tuple: Tokenizer functions for the source and target languages.
+        tuple: A pair of tokenizer functions (src_tokenizer, trg_tokenizer) 
+               that tokenize text into a list of lowercase tokens.
+
+    Raises:
+        ValueError: If the provided language code is not supported.
+        OSError: If spaCy fails to load a required model.
     """
     spacy_models = {
         "en": "en_core_web_sm",
@@ -51,6 +65,16 @@ def load_tokenizers(src_lang, trg_lang):
     tokenizers = {}
     
     def tokenize_text(text, spacy_model):
+        """
+        Tokenizes input text using a given spaCy model.
+
+        Args:
+            text (str): The input sentence.
+            spacy_model (spacy.Language): Loaded spaCy language model.
+
+        Returns:
+            list: A list of lowercase tokens.
+        """
         return [tok.text.lower() for tok in spacy_model.tokenizer(text)]
 
     for lang in [src_lang, trg_lang]:
@@ -71,18 +95,36 @@ def load_tokenizers(src_lang, trg_lang):
 
 def build_vocab(dataset, tokenizer, min_freq, max_size):
     """
-    Builds a vocabulary from a dataset.
+    Builds a vocabulary from a dataset using a given tokenizer.
+
+    This function extracts tokens from a dataset, filters them based on frequency, and constructs 
+    a vocabulary with special tokens for padding, sentence start, sentence end, and unknown words.
 
     Args:
-        dataset (iterable): Dataset of sentence pairs.
-        tokenizer (callable): Tokenizer function.
-        min_freq (int): Minimum frequency for token inclusion.
+        dataset (iterable): An iterable of sentence pairs (source, target).
+        tokenizer (callable): A function that tokenizes input text.
+        min_freq (int): Minimum frequency required for a token to be included in the vocabulary.
         max_size (int): Maximum vocabulary size.
 
     Returns:
-        Vocab: Constructed vocabulary.
+        torchtext.vocab.Vocab: The constructed vocabulary object.
+
+    Special Tokens:
+        - "<pad>": Padding token
+        - "<sos>": Start of sentence
+        - "<eos>": End of sentence
+        - "<unk>": Unknown token (used as the default index)
     """
     def yield_tokens(data):
+        """
+        Yields tokens from the dataset using the provided tokenizer.
+
+        Args:
+            data (iterable): Dataset containing (source, target) sentence pairs.
+
+        Yields:
+            list: Tokenized version of the source and target sentences.
+        """
         for (src, trg) in data:
             yield tokenizer(src)
             yield tokenizer(trg)
@@ -94,17 +136,43 @@ def build_vocab(dataset, tokenizer, min_freq, max_size):
         specials=["<pad>", "<sos>", "<eos>", "<unk>"]
     )
 
-    vocab.set_default_index(vocab["<unk>"])
+    vocab.set_default_index(vocab["<unk>"])  # Assign <unk> as the default index for unknown words
 
     return vocab
 
 
 def create_decode_function(vocab):
-    """Creates a decode function to convert token indices to text."""
-    index_to_word = {idx: word for word, idx in vocab.get_stoi().items()}  # Reverse vocab mapping
+    """
+    Creates a function to decode token indices into readable text.
+
+    This function returns a decoder that converts a sequence of token indices into a human-readable 
+    sentence, ignoring special tokens such as "<pad>", "<sos>", "<eos>", and "<unk>".
+
+    Args:
+        vocab (torchtext.vocab.Vocab): The vocabulary object.
+
+    Returns:
+        callable: A function that converts a list of token indices to a string.
+
+    Example:
+        ```
+        vocab = build_vocab(...)
+        decode_fn = create_decode_function(vocab)
+        sentence = decode_fn([2, 5, 12, 8])  # Converts indices to a readable sentence
+        ```
+    """
+    index_to_word = {idx: word for word, idx in vocab.get_stoi().items()}  # Reverse mapping
 
     def decode(indices):
-        """Converts token indices back to a readable sentence."""
+        """
+        Converts a sequence of token indices into a human-readable sentence.
+
+        Args:
+            indices (list): A list of token indices.
+
+        Returns:
+            str: A reconstructed sentence with special tokens removed.
+        """
         return " ".join([index_to_word[idx] for idx in indices if index_to_word[idx] not in ["<pad>", "<sos>", "<eos>", "<unk>"]])
 
     return decode
@@ -114,23 +182,34 @@ def load_dataset(src_lang, trg_lang, min_freq=config.MIN_FREQ, max_size=config.M
     """
     Loads the IWSLT2016 dataset using torchtext.
 
+    This function retrieves the IWSLT2016 dataset and processes it into training, validation, and test sets.
+    It also builds vocabularies and tokenizers for both the source and target languages.
+
     Args:
-        src_lang (str): Source language.
-        trg_lang (str): Target language.
-        min_freq (int): Minimum frequency for vocab tokens.
-        max_size (int): Maximum vocab size.
+        src_lang (str): Source language code (e.g., 'en', 'fr', 'de').
+        trg_lang (str): Target language code (e.g., 'en', 'fr', 'de').
+        min_freq (int, optional): Minimum frequency a token must have to be included in the vocabulary. Default from config.
+        max_size (int, optional): Maximum vocabulary size. Default from config.
 
     Returns:
-        tuple: Data splits, vocabularies, and tokenizers.
+        tuple:
+            - train_data (list of tuples): Training dataset (source sentence, target sentence).
+            - valid_data (list of tuples): Validation dataset.
+            - test_data (list of tuples): Test dataset.
+            - src_vocab (Vocab): Vocabulary object for the source language.
+            - trg_vocab (Vocab): Vocabulary object for the target language.
+            - src_tokenizer (callable): Tokenizer function for source language.
+            - trg_tokenizer (callable): Tokenizer function for target language.
     """
     train_iter, valid_iter, test_iter = IWSLT2016(language_pair=(src_lang, trg_lang))
-
-    src_tokenizer, trg_tokenizer = load_tokenizers(src_lang, trg_lang)
-    
     train_data, valid_data, test_data = list(train_iter), list(valid_iter), list(test_iter)
 
+    src_tokenizer, trg_tokenizer = load_tokenizers(src_lang, trg_lang)
     src_vocab = build_vocab(train_data, src_tokenizer, min_freq=min_freq, max_size=max_size)
     trg_vocab = build_vocab(train_data, trg_tokenizer, min_freq=min_freq, max_size=max_size)
+
+    src_tokenizer.decode = create_decode_function(src_vocab)
+    trg_tokenizer.decode = create_decode_function(trg_vocab)
 
     return train_data, valid_data, test_data, src_vocab, trg_vocab, src_tokenizer, trg_tokenizer
 
@@ -139,28 +218,31 @@ def load_dataset_fallback(src_lang, trg_lang, min_freq=config.MIN_FREQ, max_size
     """
     Loads a locally stored IWSLT2016 dataset.
 
+    This function reads the dataset from local files in case online access is unavailable.
+    It supports both plain text and XML-based datasets and processes them accordingly.
+
     Args:
-        src_lang (str): Source language.
-        trg_lang (str): Target language.
-        min_freq (int): Minimum token frequency for vocab.
-        max_size (int): Maximum vocab size.
-        dir (str): Dataset directory.
+        src_lang (str): Source language code (e.g., 'en', 'fr', 'de').
+        trg_lang (str): Target language code (e.g., 'en', 'fr', 'de').
+        min_freq (int, optional): Minimum frequency for vocab tokens. Default from config.
+        max_size (int, optional): Maximum vocabulary size. Default from config.
+        dir (str, optional): Directory containing the dataset. Default from config.
 
     Returns:
         tuple:
-            - train_data (list of tuples): Training data pairs (source sentence, target sentence).
-            - valid_data (list of tuples): Validation data pairs (source sentence, target sentence).
-            - test_data (list of tuples): Test data pairs (source sentence, target sentence).
-            - src_vocab (Vocab): Vocabulary for the source language.
-            - trg_vocab (Vocab): Vocabulary for the target language.
-            - src_tokenizer (callable): Tokenizer function for the source language.
-            - trg_tokenizer (callable): Tokenizer function for the target language.
+            - train_data (list of tuples): Training dataset.
+            - valid_data (list of tuples): Validation dataset.
+            - test_data (list of tuples): Test dataset.
+            - src_vocab (Vocab): Source language vocabulary.
+            - trg_vocab (Vocab): Target language vocabulary.
+            - src_tokenizer (callable): Source language tokenizer function.
+            - trg_tokenizer (callable): Target language tokenizer function.
 
     Raises:
-        FileNotFoundError: If the dataset directory or expected dataset files are missing.
+        FileNotFoundError: If the dataset directory or required files are missing.
     """
-    dataset_path = os.path.join(dir, f"{src_lang}-{trg_lang}")
 
+    dataset_path = os.path.join(dir, f"{src_lang}-{trg_lang}")
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_path}")
 
@@ -173,10 +255,10 @@ def load_dataset_fallback(src_lang, trg_lang, min_freq=config.MIN_FREQ, max_size
             trg_path (str): Path to the target language text file.
 
         Returns:
-            list of tuples: Each tuple contains (source sentence, target sentence).
+            list of tuples: A list of (source sentence, target sentence) pairs.
 
         Raises:
-            FileNotFoundError: If any of the dataset files are missing.
+            FileNotFoundError: If any of the text dataset files are missing.
         """
         if not os.path.exists(src_path) or not os.path.exists(trg_path):
             raise FileNotFoundError(f"Missing dataset files: {src_path}, {trg_path}")
@@ -203,10 +285,10 @@ def load_dataset_fallback(src_lang, trg_lang, min_freq=config.MIN_FREQ, max_size
             trg_path (str): Path to the target language XML file.
 
         Returns:
-            list of tuples: Each tuple contains (source sentence, target sentence).
+            list of tuples: A list of (source sentence, target sentence) pairs.
 
         Raises:
-            FileNotFoundError: If any of the XML dataset files are missing.
+            FileNotFoundError: If the XML dataset files are missing.
             ValueError: If the XML file does not contain expected <seg> elements.
         """
         if not os.path.exists(src_path) or not os.path.exists(trg_path):
@@ -254,16 +336,22 @@ def collate_fn(batch, src_vocab, trg_vocab, src_tokenizer, trg_tokenizer, pad_id
     """
     Custom collate function for dynamically padding sequences within a batch.
     
+    This function tokenizes source and target sentences, converts them into indices,
+    adds start-of-sequence (<sos>) and end-of-sequence (<eos>) tokens, and pads sequences
+    to the maximum length within the batch.
+    
     Args:
         batch (list of tuples): Each tuple contains (src_sentence, trg_sentence).
         src_vocab (Vocab): Vocabulary object for source language.
         trg_vocab (Vocab): Vocabulary object for target language.
         src_tokenizer (callable): Tokenizer function for source language.
         trg_tokenizer (callable): Tokenizer function for target language.
-        pad_idx (int): Padding index.
+        pad_idx (int): Index used for padding sequences.
 
     Returns:
-        torch.Tensor: Padded source and target tensors.
+        tuple: 
+            - torch.Tensor: Padded source tensor of shape (batch_size, max_src_len).
+            - torch.Tensor: Padded target tensor of shape (batch_size, max_trg_len).
     """
     src_batch, trg_batch = [], []
 
@@ -285,17 +373,27 @@ def collate_fn(batch, src_vocab, trg_vocab, src_tokenizer, trg_tokenizer, pad_id
 
 def create_dataloaders(train_data, valid_data, test_data, src_vocab, trg_vocab, src_tokenizer, trg_tokenizer, batch_size=config.BATCH_SIZE):
     """
-    Create PyTorch dataloaders for training, validation, and testing.
+    Creates PyTorch dataloaders for training, validation, and testing.
+    
+    The dataloaders use a custom collate function for dynamic sequence padding,
+    ensuring that sequences in each batch are padded to the length of the longest
+    sequence in that batch.
 
     Args:
-        train_data, valid_data, test_data: Dataset splits.
-        src_vocab, trg_vocab: Vocab objects for source and target languages.
-        src_tokenizer, trg_tokenizer: Tokenizer functions.
-        batch_size (int): Batch size for training.
-        shuffle (bool): Whether to shuffle training data.
+        train_data (list of tuples): Training dataset containing (src_sentence, trg_sentence) pairs.
+        valid_data (list of tuples): Validation dataset containing (src_sentence, trg_sentence) pairs.
+        test_data (list of tuples): Test dataset containing (src_sentence, trg_sentence) pairs.
+        src_vocab (Vocab): Vocabulary object for the source language.
+        trg_vocab (Vocab): Vocabulary object for the target language.
+        src_tokenizer (callable): Tokenizer function for the source language.
+        trg_tokenizer (callable): Tokenizer function for the target language.
+        batch_size (int, optional): Batch size for dataloaders. Defaults to config.BATCH_SIZE.
 
     Returns:
-        Tuple of DataLoader objects.
+        tuple:
+            - DataLoader: DataLoader for the training dataset.
+            - DataLoader: DataLoader for the validation dataset.
+            - DataLoader: DataLoader for the test dataset.
     """
     pad_idx = src_vocab["<pad>"]
 
