@@ -11,6 +11,19 @@ from nltk.translate.bleu_score import corpus_bleu
 import config
 
 
+def clear_directories(directories=config.DIRECTORIES):
+    """
+    Deletes all directories specified in the configuration file.
+    
+    This is useful for clearing previous training outputs, ensuring
+    that new experiments start fresh without leftover data.
+    """
+    for directory in directories:
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
+            print(f"{directory}/ deleted successfully!")
+
+
 def get_language_choice():
     """
     Prompts the user to select a source and target language from a predefined set of valid languages.
@@ -49,19 +62,6 @@ def get_language_choice():
         print("Invalid target language. Please try again.")
     
     return src_lang, trg_lang
-
-
-def clear_directories(directories=config.DIRECTORIES):
-    """
-    Deletes all directories specified in the configuration file.
-    
-    This is useful for clearing previous training outputs, ensuring
-    that new experiments start fresh without leftover data.
-    """
-    for directory in directories:
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
-            print(f"{directory}/ deleted successfully!")
 
 
 def get_checkpoint_filename(dir, epoch, src_lang, trg_lang):
@@ -116,19 +116,18 @@ def load_checkpoint(model, optimizer, dir=config.MODELS_DIR):
     Warning:
         If the checkpoint file does not exist, the function prints a warning and does not modify the model.
     """
-    # src_lang, trg_lang = get_language_choice()
+    src_lang, trg_lang = get_language_choice()
 
-    # while True:
-    #     epoch = input("Which epoch would you like to load the model from: ").strip().lower()
+    while True:
+        epoch = input("Which epoch would you like to load the model from: ").strip().lower()
 
-    #     if epoch.isdigit():
-    #         epoch = int(epoch)
-    #         break
+        if epoch.isdigit():
+            epoch = int(epoch)
+            break
         
-    #     print("Invalid input. Please enter again.")
+        print("Invalid input. Please enter again.")
     
-    # checkpoint_path = get_checkpoint_filename(dir, epoch, src_lang, trg_lang)
-    checkpoint_path = get_checkpoint_filename(dir, 1, "en", "fr")
+    checkpoint_path = get_checkpoint_filename(dir, epoch, src_lang, trg_lang)
 
     if not os.path.isfile(checkpoint_path):
         print(f"Warning: Checkpoint file '{checkpoint_path}' not found. Falling back without loading checkpoint.")
