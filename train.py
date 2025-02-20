@@ -100,9 +100,6 @@ def train_model():
             src, trg = src.to(config.DEVICE, non_blocking=True), trg.to(config.DEVICE, non_blocking=True)
             src, trg = src.clamp(0, src_vocab_size - 1), trg.clamp(0, trg_vocab_size - 1)
 
-            print(f"[TRAINING] SRC: {src.shape}")
-            print(f"[TRAINING] TRG: {trg.shape}")
-            
             with autocast():
                 output = model(src, trg[:, :-1])  # output.shape: (batch, seq_len-1, vocab_size)
                 output = output.contiguous().view(-1, output.shape[2])  # (batch * seq_len-1, vocab_size)
@@ -110,7 +107,7 @@ def train_model():
                 optimizer.zero_grad()
                 loss = criterion(output, trg)
                 epoch_loss += loss.item()
-                print(f"[{idx+1}/{len(train_loader)}] Loss: {loss.item()}")
+                print(f"[TRAIN LOADER] [{idx+1}/{len(train_loader)}] Loss: {loss.item()}")
 
             # loss.backward()
             scaler.scale(loss).backward()
@@ -130,12 +127,36 @@ def train_model():
             step += 1
             
         mean_loss = epoch_loss / len(train_loader)
-        print(f"Epoch {epoch+1}/{config.EPOCHS_NUM}, Loss: {mean_loss:.4f}")
+        mean_valid_loss = validate_model(model, valid_loader, src_vocab, trg_vocab, criterion, config.DEVICE)
+
+        writer.add_scalar("Validation loss", mean_valid_loss, global_step=epoch)
+
+        print(f"Epoch {epoch+1}/{config.EPOCHS_NUM}, Loss: {mean_loss:.4f}, Validation Loss: {mean_valid_loss:.4f}")
 
         if config.SAVE_MODEL:
             save_checkpoint(epoch+1, src_lang, trg_lang, model, optimizer)
             
         scheduler.step(mean_loss)
+        
+    
+def validate_model(model, valid_loader, src_vocab, trg_vocab, criterion, device):
+    model.eval()
+    valid_loss = 0
+
+    with torch.no_grad():
+        for idx, (src, trg) in enumerate(valid_loader):
+            src, trg = src.to(device, non_blocking=True), trg.to(device, non_blocking=True)
+            src, trg = src.clamp(0, len(src_vocab) - 1), trg.clamp(0, len(trg_vocab) - 1)
+
+            output = model(src, trg[:, :-1])
+            output = output.contiguous().view(-1, output.shape[2])
+            trg = trg[:, 1:].contiguous().view(-1)
+
+            loss = criterion(output, trg)
+            valid_loss += loss.item()
+            print(f"[VALID LOADER] [{idx+1}/{len(valid_loader)}] Valid Loss: {loss.item()}")
+
+    return valid_loss / len(valid_loader)
 
         
 if __name__ == "__main__":

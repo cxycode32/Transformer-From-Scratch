@@ -3,7 +3,7 @@ import torch
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODEL = True
-LOAD_MODEL = True
+LOAD_MODEL = False
 
 BATCH_SIZE = 16
 EPOCHS_NUM = 2

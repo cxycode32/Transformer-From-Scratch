@@ -1,13 +1,10 @@
 import os
 import shutil
 import torch
-import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-import numpy as np
+from torch.cuda.amp import autocast
 import torchtext
 torchtext.disable_torchtext_deprecation_warning()
-import nltk
-from nltk.translate.bleu_score import corpus_bleu
+from torchtext.data.metrics import bleu_score
 import config
 
 
