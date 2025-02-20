@@ -135,3 +135,37 @@ def load_checkpoint(model, optimizer, dir=config.MODELS_DIR):
     model.load_state_dict(checkpoint["state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer"])
     print("Checkpoint loaded successfully.")
+
+
+def tensor_to_tokens(tensor, vocab):
+    if isinstance(tensor, list):
+        return [vocab.lookup_token(idx) for idx in tensor]
+    return [vocab.lookup_token(idx) for idx in tensor.tolist()]
+
+
+def tensor_to_sentence(tensor, vocab):
+    tokens = tensor_to_tokens(tensor, vocab)
+    tokens = [tok for tok in tokens if tok not in ["<sos>", "<eos>", "<pad>"]]
+    return " ".join(tokens)
+    
+
+def translate_sentence(model, src, trg_vocab, device, max_length=100):
+    src = src.unsqueeze(0).to(device)
+    outputs = [trg_vocab["<sos>"]]
+
+    with torch.no_grad():
+        for _ in range(max_length):
+            trg = torch.LongTensor(outputs).unsqueeze(0).to(device)
+            output = model(src, trg)
+            best_guess = output[:, -1, :].argmax(dim=-1).item()
+            outputs.append(best_guess)
+
+            if best_guess == trg_vocab["<eos>"]:
+                break
+
+    translated_sentence = tensor_to_sentence(outputs, trg_vocab)
+    return translated_sentence
+
+
+def calculate_bleu(outputs, targets):
+    return bleu_score(outputs, targets)

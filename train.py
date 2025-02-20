@@ -14,7 +14,11 @@ from utils import (
     clear_directories,
     save_checkpoint,
     load_checkpoint,
+    tensor_to_sentence,
+    translate_sentence,
+    calculate_bleu,
 )
+
 
 torch.backends.cudnn.benchmark = True
 torch.cuda.empty_cache()
@@ -138,6 +142,8 @@ def train_model():
             
         scheduler.step(mean_loss)
         
+    test_model(model, test_loader, src_vocab, trg_vocab, config.DEVICE)
+        
     
 def validate_model(model, valid_loader, src_vocab, trg_vocab, criterion, device):
     model.eval()
@@ -158,6 +164,36 @@ def validate_model(model, valid_loader, src_vocab, trg_vocab, criterion, device)
 
     return valid_loss / len(valid_loader)
 
+
+def test_model(model, test_loader, src_vocab, trg_vocab, device):
+    model.eval()
+    targets, outputs = [], []
+    
+    with torch.no_grad():
+        for idx, (src, trg) in enumerate(test_loader):
+            if idx % 100 == 0:
+                torch.cuda.empty_cache()
+
+            src, trg = src.to(device, non_blocking=True), trg.to(device, non_blocking=True)
+            src, trg = src.clamp(0, len(src_vocab) - 1), trg.clamp(0, len(trg_vocab) - 1)
+
+            batch_size = src.shape[0]
+
+            for idx in range(batch_size):
+                src_sentence = tensor_to_sentence(src[idx], src_vocab)
+                trg_sentence = tensor_to_sentence(trg[idx], trg_vocab)
+                
+                prediction = translate_sentence(model, src[idx], trg_vocab, device)
+                print(f"[TESTING] prediction: {prediction}")
+
+                targets.append([trg_sentence])
+                outputs.append(prediction)
+
+                print(f"[{idx+1}/{len(test_loader)}] {src_sentence}\nOutput: {outputs}")
+
+        bleu_score = calculate_bleu(outputs, targets) * 100
+        print(f"BLEU Score: {bleu_score:.4f}")
+        
         
 if __name__ == "__main__":
     train_model()
