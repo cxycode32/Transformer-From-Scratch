@@ -1,32 +1,45 @@
 # Transformer-From-Scratch
 
-A fully implemented Transformer model built from scratch using PyTorch, designed for neural machine translation (NMT). The model supports bidirectional translation between English and French, German, Czech, and Arabic.
+A fully implemented Transformer model built from scratch using PyTorch, designed for neural machine translation (NMT). This project supports translation between English and French, German, Czech, and Arabic, leveraging the IWSLT2016 dataset.
+
 
 ## Features
-- Implements the Transformer architecture from scratch.
-- Supports translation between English and four other languages: French, German, Czech, and Arabic.
-- Enables training from scratch with dataset handling.
-- Allows saving and loading trained models.
+
+- **Transformer Architecture from Scratch:** Implements the Transformer model from scratch.
+- **IWSLT2016 Dataset:** Uses the IWSLT2016 dataset.
+- **Multi-language Translation:** Trains the model for translation from English to French, German, Czech, and Arabic, and vice versa.
+- **Training, Validation, and Testing:** Complete training, validation, and testing datasets.
+- **Save and Load:** Supports loading and saving trained models.
+- **TensorBoard Integration:** Visualize training process with TensorBoard.
+
 
 ## Installation
 
-Ensure you have Python 3.8+ installed, then install dependencies:
+### Clone the Repository
 
-```sh
-pip install torch torchtext tensorboard
+```bash
+git clone https://github.com/cxycode32/Transformer-From-Scratch.git
+cd Transformer-From-Scratch/
 ```
+
+Install dependencies with:
+```bash
+pip install -r requirements.txt
+```
+
 
 ## Usage
 
 ### Training the Model
-Run the script and select the language pair for translation:
 
-```sh
-python train.py --src en --tgt fr
+You can go to `config.py` to configure your hyperparameters.
+
+Then run the command:
+```bash
+python train.py
 ```
 
-You'll be prompted to select a source and target language from the following options:
-
+You will be prompted to select a source and target language from the following options:
 ```python
 valid_langs = {
     "en": ["fr", "de", "cs", "ar"],
@@ -39,38 +52,45 @@ valid_langs = {
 
 Once selected, the training process will begin.
 
-### Testing the Model
-After training, you can evaluate the model using:
-
-```sh
-python test.py --src en --tgt fr --model_path saved_model.pth
-```
-
 ### Saving & Loading the Model
-The model can be saved after training and loaded later for inference:
+The model can be saved after training and loaded later:
 
-```sh
-python train.py --save_model saved_model.pth
-python train.py --load_model saved_model.pth
+`config.py`:
+```python
+SAVE_MODEL = True
+LOAD_MODEL = True
 ```
+
 
 ## Dataset
 
-This project uses the IWSLT2016 dataset. If the automated download fails due to a `404 Client Error`, you can manually download it from [wit3.fbk.eu](https://wit3.fbk.eu/2016-01) and extract the required language pairs into the `IWSLT2016/` directory.
+This project uses the IWSLT2016 dataset. If the automated download fails due to a `404 Client Error`, you can manually download it from [wit3.fbk.eu](https://wit3.fbk.eu/2016-01). After that:
+1. Go to the downloaded folder 2016-01/texts/
+2. You will see a list of source language folders
+3. Each source language folder has its target language folder inside
+4. <src_lang>/<trg_lang>/
+5. Then you will see <src_lang>-<trg_lang>.zip
+6. For example, my src_lang is 'fr' and trg_lang is 'en', then fr/en/fr-en.zip
+7. Extract the fr-en/ folder from the ZIP file to Transformer-From-Scratch/IWSLT2016
 
-## Transformer Architecture Breakdown
 
-The model consists of:
-- **Self-Attention Mechanism**: Enables context-aware word representation.
-- **Multi-Head Attention**: Improves feature extraction.
-- **Positional Encoding**: Provides sequence information.
-- **Feedforward Networks**: Enhances expressiveness.
-- **Layer Normalization & Dropout**: Prevents overfitting.
+## Credits:
 
-## Future Work
-- Implement beam search decoding for better translations.
-- Optimize model efficiency with quantization and pruning.
-- Add support for larger datasets and fine-tuning on domain-specific corpora.
+- Paper: [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+- Repo: [aladdinpersson/Machine-Learning-Collection](https://github.com/aladdinpersson/Machine-Learning-Collection)
 
-## Contributions
-Feel free to fork this repository and submit pull requests if you’d like to contribute!
+
+## License
+
+This project is open-source under the MIT License.
+
+
+## How to Contribute
+
+Contributions are welcome! If you'd like to improve the project, follow these steps:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature-branch`).
+3. Commit your changes (`git commit -m "Add new feature"`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Open a pull request.

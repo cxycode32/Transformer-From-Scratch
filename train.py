@@ -46,7 +46,7 @@ def train_model():
     4. <src_lang>/<trg_lang>/
     5. Then you will see <src_lang>-<trg_lang>.zip
     6. For example, my src_lang is 'fr' and trg_lang is 'en', then fr/en/fr-en.zip
-    7. Extract the fr-en/ folder from the ZIP file to <project_root_dir>/Seq2Seq_Attention/IWSLT2016
+    7. Extract the fr-en/ folder from the ZIP file to Transformer-From-Scratch/IWSLT2016
     """
     try:
         train_data, valid_data, test_data, src_vocab, trg_vocab, src_tokenizer, trg_tokenizer = load_dataset(src_lang, trg_lang)
